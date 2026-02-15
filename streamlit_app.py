@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
+from datetime import datetime, timedelta
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Azarashi Archive", page_icon="🎬", layout="wide")
@@ -8,94 +8,111 @@ st.set_page_config(page_title="Azarashi Archive", page_icon="🎬", layout="wide
 # --- 1. CONNECTION SETUP ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 2. DATA LOADING ---
-# Load Library (Dropdown options)
-try:
-    library_df = conn.read(worksheet="Library", ttl="10m")
-    library_df.columns = library_df.columns.str.strip()
-    file_options = library_df['File Name'].tolist()
-except Exception as e:
-    st.error(f"Error loading Library: {e}")
-    file_options = []
+# --- 2. DATA LOADING & PREP ---
+@st.cache_data(ttl="2s")
+def load_and_merge_data():
+    # Load Library
+    lib = conn.read(worksheet="Library")
+    lib.columns = lib.columns.str.strip()
+    
+    # Load Requests
+    try:
+        req = conn.read(worksheet="Requests")
+        req.columns = req.columns.str.strip()
+        # Ensure Timestamp is a datetime object
+        req['Timestamp'] = pd.to_datetime(req['Timestamp'])
+    except:
+        req = pd.DataFrame(columns=["File", "Status", "Link", "Timestamp"])
+    
+    return lib, req
 
-# Load Requests (Live status board)
-try:
-    # We set a very low TTL (Time To Live) so the user sees the 'Done' status quickly
-    requests_df = conn.read(worksheet="Requests", ttl="2s")
-    requests_df.columns = requests_df.columns.str.strip()
-except Exception:
-    # Fallback if the Requests sheet is empty or not found
-    requests_df = pd.DataFrame(columns=["File", "Status", "Link", "Timestamp"])
+library_df, requests_df = load_and_merge_data()
 
-# --- 3. MAIN INTERFACE ---
-st.title("🎬 File Request Portal")
-st.markdown("Select a file to request a GigaFile upload. Monitor the table below for your download link.")
+# --- 3. SIDEBAR FILTERING ---
+st.sidebar.header("🔍 Filter Archive")
+all_categories = library_df['Category'].unique().tolist() if 'Category' in library_df.columns else []
+selected_cat = st.sidebar.multiselect("Category", all_categories, default=all_categories)
 
-with st.container(border=True):
-    # Only one input needed now
-    selected_file = st.selectbox("Select the file you want to download:", file_options)
+search_query = st.sidebar.text_input("Search Filename", "")
 
-    if st.button("🚀 Request GigaFile Upload", use_container_width=True):
-        if selected_file:
+# Apply Filters
+filtered_df = library_df.copy()
+if selected_cat:
+    filtered_df = filtered_df[filtered_df['Category'].isin(selected_cat)]
+if search_query:
+    filtered_df = filtered_df[filtered_df['File Name'].str.contains(search_query, case=False)]
+
+# --- 4. MAIN INTERFACE ---
+st.title("🎬 Azarashi Archive Explorer")
+st.write(f"Showing {len(filtered_df)} files available in the vault.")
+
+# --- 5. THE DYNAMIC TABLE ---
+# We build a custom display loop to handle the logic per row
+st.divider()
+
+# Table Header
+h1, h2, h3, h4 = st.columns([3, 2, 2, 2])
+h1.write("**Filename**")
+h2.write("**Status / Link**")
+h3.write("**Expires In**")
+h4.write("**Action**")
+st.divider()
+
+for _, row in filtered_df.iterrows():
+    filename = row['File Name']
+    
+    # Find the latest SUCCESSFUL request for this file
+    file_requests = requests_df[(requests_df['File'] == filename) & (requests_df['Status'] == 'Done')]
+    
+    last_req_time = None
+    giga_link = "N/A"
+    
+    if not file_requests.empty:
+        latest = file_requests.sort_values('Timestamp', ascending=False).iloc[0]
+        last_req_time = latest['Timestamp']
+        giga_link = latest['Link']
+
+    # Calculate Expiration
+    is_expired = True
+    countdown_text = "Never Requested"
+    
+    if last_req_time:
+        expiry_date = last_req_time + timedelta(days=100)
+        remaining = expiry_date - datetime.now()
+        
+        if remaining.days > 0:
+            is_expired = False
+            countdown_text = f"⏳ {remaining.days} Days"
+        else:
+            countdown_text = "❌ Expired"
+
+    # Render Row
+    r1, r2, r3, r4 = st.columns([3, 2, 2, 2])
+    
+    r1.write(filename)
+    
+    if not is_expired:
+        r2.link_button("🔗 Download File", giga_link)
+        r3.write(countdown_text)
+        r4.write("✅ Active")
+    else:
+        r2.write("⚠️ Link Unavailable")
+        r3.write(countdown_text)
+        # REQUEST BUTTON
+        if r4.button("🚀 Request", key=f"req_{filename}"):
             try:
-                # RECURSIVE CLIENT RETRIEVAL (To handle library versioning)
-                if hasattr(conn, "_instance") and hasattr(conn._instance, "_client"):
-                    client = conn._instance._client
-                elif hasattr(conn, "_instance") and hasattr(conn._instance, "_engine"):
-                    client = conn._instance._engine.client
-                else:
-                    client = conn._instance.client
-
-                # Target your specific Spreadsheet ID
+                # Same gspread logic as before
+                client = conn._instance._client if hasattr(conn._instance, '_client') else conn._instance.client
                 spreadsheet_id = "1eKARMeobo9BI0nGIn8Nn9DbPrVnMs5tWGieX3Kzijds"
-                
                 sh = client.open_by_key(spreadsheet_id)
                 sheet = sh.worksheet("Requests")
                 
-                # Prepare data [File, Status, Link, Timestamp]
-                # Note: 'User/Email' column is removed
-                timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
-                new_row = [selected_file, "Pending", "", timestamp]
-                
-                # Append to bottom of sheet
+                new_row = [filename, "Pending", "", datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
                 sheet.append_row(new_row)
                 
-                st.success(f"✅ Request for '{selected_file}' added to the queue!")
-                st.balloons()
-                st.cache_data.clear()
+                st.toast(f"Request sent for {filename}!")
                 st.rerun()
-                
             except Exception as e:
-                st.error(f"Logic Error: {e}")
-                st.info("Ensure the Service Account is an 'Editor' and the Google Drive API is enabled.")
-        else:
-            st.warning("Please select a file first.")
+                st.error(f"Error: {e}")
 
-# --- 4. LIVE STATUS BOARD ---
-st.divider()
-st.subheader("📋 Live Download Queue")
-st.info("Once the status changes to 'Done', click the link in the 'Download Link' column.")
-
-if not requests_df.empty:
-    # Clean the dataframe for display (Removing 'User' column if it still exists in the sheet)
-    display_cols = ["File", "Status", "Link", "Timestamp"]
-    # Only show columns that actually exist in the dataframe
-    existing_cols = [c for c in display_cols if c in requests_df.columns]
-    
-    # Show last 15 requests, newest at the top
-    st.dataframe(
-        requests_df[existing_cols].tail(15).iloc[::-1], 
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Link": st.column_config.LinkColumn("Download Link", width="medium"),
-            "Status": st.column_config.TextColumn("Status", width="small"),
-            "Timestamp": st.column_config.TextColumn("Time Requested", width="small")
-        }
-    )
-else:
-    st.write("No active requests. Select a file above to start.")
-
-if st.button("🔄 Check for Updates"):
-    st.cache_data.clear()
-    st.rerun()
+    st.write("---")

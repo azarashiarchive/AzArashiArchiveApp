@@ -39,18 +39,24 @@ with st.container(border=True):
 
 if st.button("🚀 Request GigaFile Upload", use_container_width=True):
     if user_email and selected_file:
-        try:
-            # Reaching into the updated library structure
-            client = conn._instance._client 
+       try:
+            # 1. Get the underlying gspread client correctly
+            # In newer versions of the library, it's stored here:
+            client = conn._instance.client 
             
-            # Open the worksheet
-            sheet = client.open_as_spreadsheet().worksheet("Requests")
+            # 2. Get the Spreadsheet ID from your secrets
+            # This ensures we are opening the exact right file
+            spreadsheet_id = st.secrets["connections"]["gsheets"]["spreadsheet"].split("/")[-2]
             
-            # Prepare the row
+            # 3. Open the sheet and the tab
+            sh = client.open_by_key(spreadsheet_id)
+            sheet = sh.worksheet("Requests")
+            
+            # 4. Prepare data row
             timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
             new_row = [user_email, selected_file, "Pending", "", timestamp]
             
-            # Append the data
+            # 5. Append
             sheet.append_row(new_row)
             
             st.success(f"✅ Request for '{selected_file}' logged!")
@@ -58,7 +64,7 @@ if st.button("🚀 Request GigaFile Upload", use_container_width=True):
             st.rerun()
             
         except Exception as e:
-            st.error(f"Logic Error: {e}")
+            st.error(f"Detailed Logic Error: {e}")
     else:
         st.warning("Please fill in all fields.")
 

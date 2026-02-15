@@ -3,8 +3,39 @@ import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from datetime import datetime, timedelta
 
-# --- PAGE CONFIGURATION ---
-st.set_page_config(page_title="Azarashi Archive", page_icon="🎬", layout="wide")
+# --- 1. PASSWORD PROTECTION ---
+def check_password():
+    """Returns `True` if the user had the correct password."""
+
+    def password_entered():
+        # Change 'your_chosen_password' to whatever you want
+        if st.session_state["password"] == "five":
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # don't store password in state
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        # First run, show input for password.
+        st.text_input(
+            "Enter Password to Access Archive", type="password", on_change=password_entered, key="password"
+        )
+        return False
+    elif not st.session_state["password_correct"]:
+        # Password incorrect, show input again.
+        st.text_input(
+            "Enter Password to Access Archive", type="password", on_change=password_entered, key="password"
+        )
+        st.error("😕 Password incorrect")
+        return False
+    else:
+        # Password correct.
+        return True
+
+# --- 2. THE MAIN APP (Only runs if password is correct) ---
+if check_password():
+    # --- PAGE CONFIGURATION ---
+    st.set_page_config(page_title="Azarashi Archive", page_icon="🎬", layout="wide")
 
 # --- 1. CONNECTION SETUP ---
 conn = st.connection("gsheets", type=GSheetsConnection)

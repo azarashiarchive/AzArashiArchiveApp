@@ -60,7 +60,7 @@ if search_query:
     filtered_df = filtered_df[filtered_df['File Name'].str.contains(search_query, case=False)]
 
 # --- 4. MAIN INTERFACE ---
-st.title("🎬 Azarashi Archive Explorer")
+st.title("🦭⛈️ AZArashi Archive Explorer 🦭⛈️")
 st.write(f"Showing **{len(filtered_df)}** files available.")
 
 # --- 5. THE DYNAMIC TABLE ---

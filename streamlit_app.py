@@ -34,7 +34,7 @@ with st.container(border=True):
     with col1:
         selected_file = st.selectbox("Choose a file:", file_options)
     with col2:
-        user_email = st.text_input("Your Email:", placeholder="jjelinger@gmail.com")
+        user_email = st.text_input("Your Email:")
 
     if st.button("🚀 Request GigaFile Upload", use_container_width=True):
         if user_email and selected_file:

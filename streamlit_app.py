@@ -37,8 +37,8 @@ with st.container(border=True):
     with col2:
         user_email = st.text_input("Your Email (for notification):", placeholder="yourname@email.com")
 
-    if st.button("🚀 Request GigaFile Upload", use_container_width=True):
-        if user_email and selected_file:
+if st.button("🚀 Request GigaFile Upload", use_container_width=True):
+    if user_email and selected_file:
         try:
             # Reaching into the updated library structure
             client = conn._instance._client 
@@ -61,6 +61,7 @@ with st.container(border=True):
             st.error(f"Logic Error: {e}")
     else:
         st.warning("Please fill in all fields.")
+
 # --- 5. LIVE STATUS BOARD ---
 st.divider()
 st.subheader("📋 Recent Requests & Status")

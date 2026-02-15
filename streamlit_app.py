@@ -38,33 +38,29 @@ with st.container(border=True):
         user_email = st.text_input("Your Email (for notification):", placeholder="yourname@email.com")
 
     if st.button("🚀 Request GigaFile Upload", use_container_width=True):
-        if user_email and selected_file:
-            try:
-                # ACCESS GSPREAD DIRECTLY 
-                # This avoids the .clear() error by only appending one row
-                client = conn._client
-                # Open the spreadsheet and specific worksheet
-                sheet = client.open_as_spreadsheet().worksheet("Requests")
-                
-                # Prepare data row [User, File, Status, Link, Timestamp]
-                timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
-                new_row = [user_email, selected_file, "Pending", "", timestamp]
-                
-                # APPEND DATA
-                sheet.append_row(new_row)
-                
-                st.success(f"✅ Request for '{selected_file}' logged! My local worker will process this shortly.")
-                st.balloons()
-                # Brief pause then rerun to show the new request in the table below
-                st.cache_data.clear()
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"Error logging request: {e}")
-                st.info("Check if your Service Account is set to 'Editor' in Google Sheets.")
-        else:
-            st.warning("Please provide both an email and a file selection.")
-
+    if user_email and selected_file:
+        try:
+            # Reaching into the updated library structure
+            client = conn._instance._client 
+            
+            # Open the worksheet
+            sheet = client.open_as_spreadsheet().worksheet("Requests")
+            
+            # Prepare the row
+            timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+            new_row = [user_email, selected_file, "Pending", "", timestamp]
+            
+            # Append the data
+            sheet.append_row(new_row)
+            
+            st.success(f"✅ Request for '{selected_file}' logged!")
+            st.cache_data.clear()
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Logic Error: {e}")
+    else:
+        st.warning("Please fill in all fields.")
 # --- 5. LIVE STATUS BOARD ---
 st.divider()
 st.subheader("📋 Recent Requests & Status")

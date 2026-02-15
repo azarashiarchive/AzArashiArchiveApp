@@ -39,7 +39,7 @@ with st.container(border=True):
 
 if st.button("🚀 Request GigaFile Upload", use_container_width=True):
     if user_email and selected_file:
-       try:
+        try:
             # 1. Get the underlying gspread client correctly
             # In newer versions of the library, it's stored here:
             client = conn._instance.client 
@@ -65,6 +65,7 @@ if st.button("🚀 Request GigaFile Upload", use_container_width=True):
             
         except Exception as e:
             st.error(f"Detailed Logic Error: {e}")
+
     else:
         st.warning("Please fill in all fields.")
 

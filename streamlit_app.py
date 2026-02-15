@@ -17,9 +17,9 @@ def check_password():
 
     if "password_correct" not in st.session_state:
         # Initial state: Show only the login box
-        st.markdown("## 🔒 Restricted Access")
+        st.markdown("Welcome to the AZArashi Archive")
         st.text_input(
-            "Please enter the access key:", 
+            "Please enter the password:", 
             type="password", 
             on_change=password_entered, 
             key="password"
@@ -27,9 +27,9 @@ def check_password():
         return False
     elif not st.session_state["password_correct"]:
         # Wrong password state
-        st.markdown("## 🔒 Restricted Access")
+        st.markdown("Welcome to the AZArashi Archive")
         st.text_input(
-            "Please enter the access key:", 
+            "Please enter the password:", 
             type="password", 
             on_change=password_entered, 
             key="password"
@@ -87,7 +87,7 @@ if check_password():
         filtered_df = filtered_df[filtered_df['File Name'].str.contains(search_query, case=False)]
 
     # --- MAIN UI ---
-    st.title("🎬 Azarashi Archive Explorer")
+    st.title("🦭⛈️Azarashi Archive Explorer⛈️🦭")
     st.write(f"Total Files: **{len(filtered_df)}**")
     st.divider()
 

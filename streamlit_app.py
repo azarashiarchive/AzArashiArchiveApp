@@ -45,7 +45,7 @@ def check_password():
 if check_password():
     
     # --- PAGE CONFIG ---
-    st.set_page_config(page_title="Azarashi Archive", page_icon="🎬", layout="wide")
+    st.set_page_config(page_title="Azarashi Archive", page_icon="🦭", layout="wide")
 
     # --- CONNECTION & DATA ---
     conn = st.connection("gsheets", type=GSheetsConnection)

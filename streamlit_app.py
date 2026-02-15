@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
+from streamlit_gsheets import GSheetsConnection  # <--- THIS IS THE MISSING PIECE
 from datetime import datetime, timedelta
+
+
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Azarashi Archive", page_icon="🎬", layout="wide")

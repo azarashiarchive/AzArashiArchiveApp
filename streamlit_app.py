@@ -38,7 +38,7 @@ with st.container(border=True):
         user_email = st.text_input("Your Email (for notification):", placeholder="yourname@email.com")
 
     if st.button("🚀 Request GigaFile Upload", use_container_width=True):
-    if user_email and selected_file:
+        if user_email and selected_file:
         try:
             # Reaching into the updated library structure
             client = conn._instance._client 

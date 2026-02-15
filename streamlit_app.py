@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection  # <--- THIS IS THE MISSING PIECE
+from streamlit_gsheets import GSheetsConnection
 from datetime import datetime, timedelta
-
-
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Azarashi Archive", page_icon="🎬", layout="wide")
@@ -22,43 +20,58 @@ def load_and_merge_data():
     try:
         req = conn.read(worksheet="Requests")
         req.columns = req.columns.str.strip()
-        # Ensure Timestamp is a datetime object
+        # Ensure Timestamp is a datetime object for math
         req['Timestamp'] = pd.to_datetime(req['Timestamp'])
     except:
+        # Fallback if Requests sheet is empty
         req = pd.DataFrame(columns=["File", "Status", "Link", "Timestamp"])
     
     return lib, req
 
 library_df, requests_df = load_and_merge_data()
 
-# --- 3. SIDEBAR FILTERING ---
+# --- 3. SIDEBAR DUAL-CATEGORY FILTERING ---
 st.sidebar.header("🔍 Filter Archive")
-all_categories = library_df['Category'].unique().tolist() if 'Category' in library_df.columns else []
-selected_cat = st.sidebar.multiselect("Category", all_categories, default=all_categories)
+
+# Filter 1: Type (Movie, Drama, TV Show)
+# We pull unique values from the sheet, but you can hardcode them too
+type_options = library_df['Type'].unique().tolist() if 'Type' in library_df.columns else ["Movie", "Drama", "TV Show"]
+selected_types = st.sidebar.multiselect("Category 1: Type", type_options)
+
+# Filter 2: Names (Name 1, Name 2, etc.)
+name_options = library_df['Actor'].unique().tolist() if 'Actor' in library_df.columns else ["Name 1", "Name 2", "Name 3"]
+selected_names = st.sidebar.multiselect("Category 2: Person", name_options)
 
 search_query = st.sidebar.text_input("Search Filename", "")
 
-# Apply Filters
+# --- APPLY FILTER LOGIC ---
 filtered_df = library_df.copy()
-if selected_cat:
-    filtered_df = filtered_df[filtered_df['Category'].isin(selected_cat)]
+
+# Filter by Category 1 if any selected
+if selected_types:
+    filtered_df = filtered_df[filtered_df['Type'].isin(selected_types)]
+
+# Filter by Category 2 if any selected
+if selected_names:
+    filtered_df = filtered_df[filtered_df['Actor'].isin(selected_names)]
+
+# Filter by search query if text entered
 if search_query:
     filtered_df = filtered_df[filtered_df['File Name'].str.contains(search_query, case=False)]
 
 # --- 4. MAIN INTERFACE ---
 st.title("🎬 Azarashi Archive Explorer")
-st.write(f"Showing {len(filtered_df)} files available in the vault.")
+st.write(f"Showing **{len(filtered_df)}** files available.")
 
 # --- 5. THE DYNAMIC TABLE ---
-# We build a custom display loop to handle the logic per row
 st.divider()
 
-# Table Header
+# Header layout
 h1, h2, h3, h4 = st.columns([3, 2, 2, 2])
-h1.write("**Filename**")
-h2.write("**Status / Link**")
-h3.write("**Expires In**")
-h4.write("**Action**")
+h1.markdown("**Filename**")
+h2.markdown("**Status / Link**")
+h3.markdown("**Expires In**")
+h4.markdown("**Action**")
 st.divider()
 
 for _, row in filtered_df.iterrows():
@@ -68,14 +81,15 @@ for _, row in filtered_df.iterrows():
     file_requests = requests_df[(requests_df['File'] == filename) & (requests_df['Status'] == 'Done')]
     
     last_req_time = None
-    giga_link = "N/A"
+    giga_link = ""
     
     if not file_requests.empty:
+        # Get the absolute latest entry
         latest = file_requests.sort_values('Timestamp', ascending=False).iloc[0]
         last_req_time = latest['Timestamp']
         giga_link = latest['Link']
 
-    # Calculate Expiration
+    # Countdown Logic (100 days)
     is_expired = True
     countdown_text = "Never Requested"
     
@@ -89,33 +103,37 @@ for _, row in filtered_df.iterrows():
         else:
             countdown_text = "❌ Expired"
 
-    # Render Row
+    # --- RENDER THE ROW ---
     r1, r2, r3, r4 = st.columns([3, 2, 2, 2])
     
     r1.write(filename)
     
-    if not is_expired:
-        r2.link_button("🔗 Download File", giga_link)
+    if not is_expired and giga_link:
+        r2.link_button("🔗 Download", giga_link, use_container_width=True)
         r3.write(countdown_text)
         r4.write("✅ Active")
     else:
-        r2.write("⚠️ Link Unavailable")
+        r2.write("⚠️ Link Expired/Missing")
         r3.write(countdown_text)
-        # REQUEST BUTTON
-        if r4.button("🚀 Request", key=f"req_{filename}"):
+        
+        # Action Button: Request Upload
+        if r4.button("🚀 Request", key=f"btn_{filename}"):
             try:
-                # Same gspread logic as before
+                # Get client through nested instance
                 client = conn._instance._client if hasattr(conn._instance, '_client') else conn._instance.client
                 spreadsheet_id = "1eKARMeobo9BI0nGIn8Nn9DbPrVnMs5tWGieX3Kzijds"
+                
                 sh = client.open_by_key(spreadsheet_id)
                 sheet = sh.worksheet("Requests")
                 
-                new_row = [filename, "Pending", "", datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-                sheet.append_row(new_row)
+                # [File, Status, Link, Timestamp]
+                new_data = [filename, "Pending", "", datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+                sheet.append_row(new_data)
                 
-                st.toast(f"Request sent for {filename}!")
+                st.toast(f"Request added for {filename}")
                 st.rerun()
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Request failed: {e}")
 
-    st.write("---")
+    st.divider()
+
